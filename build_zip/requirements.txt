@@ -1,0 +1,2 @@
+# Delegate dependency management to backend requirements so Oryx installs packages during Azure build
+-r backend/requirements.txt

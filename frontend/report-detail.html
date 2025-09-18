@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Expense Report Detail</title>
+  <link rel="stylesheet" href="/static/assets/style.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="header-bar">
+      <div class="header-left">
+        <div class="brand">Travel Expense Automation</div>
+        <nav class="nav-inline">
+          <a href="index.html">Untagged Expenses</a>
+          <a href="tagged-expenses.html">Tagged Expenses</a>
+          <a href="expenses.html">Manage Expenses</a>
+          <a href="reports.html" class="active">Expense Reports</a>
+        </nav>
+      </div>
+      <div class="header-right"><div class="theme-toggle" id="theme-toggle" title="Toggle Theme">🌗</div></div>
+    </header>
+    <section class="card fade-in" style="margin-top:1.3rem;">
+      <div class="section-hint">Report</div>
+      <h1 style="margin-top:0; font-size:1.1rem;">Expense Report <span id="report-title"></span></h1>
+      <div id="meta" class="small muted" style="display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:.4rem .9rem; margin-top:.4rem;"></div>
+    </section>
+    <section class="card fade-in">
+      <div class="section-hint">Expenses</div>
+      <div class="table-wrap"><div class="table-responsive">
+      <table id="expenses-table" class="table">
+        <thead>
+          <tr><th>ID</th><th>Date</th><th>Category</th><th>Merchant</th><th>Amount</th><th>Payment</th><th>Tagged</th><th>Receipt Links</th><th>Itemize</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table></div></div>
+    </section>
+    <section class="card fade-in">
+      <div class="section-hint">Items</div>
+      <div class="small muted" style="margin-bottom:.4rem;">Generated line items (room nights, taxes, etc.). Use Itemize on Hotel rows.</div>
+      <div class="table-wrap"><div class="table-responsive">
+      <table id="items-table" class="table">
+        <thead><tr><th>Expense ID</th><th>Item Date</th><th>Description</th><th>Amount</th></tr></thead>
+        <tbody></tbody>
+      </table></div></div>
+    </section>
+    <section class="card fade-in">
+      <div class="section-hint">Receipts</div>
+      <div class="table-wrap"><div class="table-responsive">
+      <table id="receipts-table" class="table">
+        <thead><tr><th>ID</th><th>Original Filename</th><th>Merchant</th><th>Amount</th><th>Date</th><th>Status</th><th>Expense Links</th></tr></thead>
+        <tbody></tbody>
+      </table></div></div>
+    </section>
+    <section class="card fade-in">
+      <div class="section-hint">Links</div>
+      <div class="table-wrap"><div class="table-responsive">
+      <table id="links-table" class="table">
+        <thead><tr><th>Expense ID</th><th>Receipt ID</th><th>Match Score</th></tr></thead>
+        <tbody></tbody>
+      </table></div></div>
+    </section>
+    <footer class="app-footer">Built with FastAPI + Vanilla JS UI • <span id="year"></span></footer>
+  </div>
+
+  <script>
+  const __origin = window.location.origin;
+  const API_BASE = (__origin && __origin !== 'null') ? __origin : 'http://localhost:8000';
+  const rootBody = document.body; const savedTheme = localStorage.getItem('app-theme'); if(savedTheme){ rootBody.setAttribute('data-theme', savedTheme);} document.getElementById('theme-toggle').addEventListener('click', ()=>{ const cur = rootBody.getAttribute('data-theme')==='dark' ? 'light':'dark'; if(cur==='light') rootBody.removeAttribute('data-theme'); else rootBody.setAttribute('data-theme','dark'); localStorage.setItem('app-theme', cur==='light'? '' : 'dark');}); document.getElementById('year').textContent = new Date().getFullYear();
+    function getParam(name){
+      const params = new URLSearchParams(window.location.search);
+      return params.get(name);
+    }
+    function fmtScore(s){ return (s===null || s===undefined)? '': (Math.round(s*100)/100); }
+    async function loadReport(){
+      const id = getParam('id');
+      if(!id){
+        document.getElementById('report-title').textContent = '(missing id)';
+        return;
+      }
+      const res = await fetch(`${API_BASE}/expense-reports/${id}`);
+      if(!res.ok){
+        document.getElementById('report-title').textContent = '(not found)';
+        return;
+      }
+      const data = await res.json();
+      document.getElementById('report-title').textContent = `#${data.id} - ${data.name}`;
+      document.getElementById('meta').innerHTML = `
+        <div><span class='muted small'>Interim</span><br>${data.interim_approver || ''}</div>
+        <div><span class='muted small'>Manager</span><br>${data.approving_manager || ''}</div>
+        <div><span class='muted small'>Purpose</span><br>${data.purpose || ''}</div>
+        <div><span class='muted small'>Created</span><br>${data.created_at}</div>
+      `;
+
+      const links = data.expense_receipt_links || [];
+      const receiptsById = {};
+      const expensesById = {};
+      links.forEach(l=>{
+        if(!receiptsById[l.receipt_id]) receiptsById[l.receipt_id] = [];
+        receiptsById[l.receipt_id].push(l);
+        if(!expensesById[l.expense_id]) expensesById[l.expense_id] = [];
+        expensesById[l.expense_id].push(l);
+      });
+
+      // Expenses table
+      const etbody = document.querySelector('#expenses-table tbody');
+      etbody.innerHTML='';
+      data.expenses.forEach(e => {
+        const linkCells = (expensesById[e.id]||[]).map(l=>`R${l.receipt_id} (s=${fmtScore(l.match_score)})`).join('<br>');
+        const tr = document.createElement('tr');
+        const isHotel = (e.category||'').toLowerCase()==='hotel';
+  const btn = isHotel ? `<button class='itemize-btn outline' data-expense-id='${e.id}'>Itemize</button>` : '';
+  tr.innerHTML = `<td>${e.id}</td><td>${e.date}</td><td>${e.category}</td><td>${e.merchant}</td><td>${e.amount}</td><td>${e.payment_method}</td><td>${e.tagged ?? ''}</td><td class='small muted'>${linkCells||''}</td><td>${btn}</td>`;
+        etbody.appendChild(tr);
+      });
+
+      // Receipts table
+      const rtbody = document.querySelector('#receipts-table tbody');
+      rtbody.innerHTML='';
+      data.receipts.forEach(r => {
+        const linkCells = (receiptsById[r.id]||[]).map(l=>`E${l.expense_id} (s=${fmtScore(l.match_score)})`).join('<br>');
+        const tr = document.createElement('tr');
+        const downloadUrl = `${API_BASE}/receipts/${r.id}/download`;
+        tr.innerHTML = `<td>${r.id}</td><td><a href='${downloadUrl}' target='_blank' rel='noopener'>${r.original_filename}</a></td><td>${r.extracted_merchant || r.extracted_vendor_name || ''}</td><td>${r.extracted_amount || ''}</td><td>${r.extracted_date || ''}</td><td>${r.status}</td><td class='mini'>${linkCells||''}</td>`;
+        rtbody.appendChild(tr);
+      });
+
+      // Links table
+      const ltbody = document.querySelector('#links-table tbody');
+      ltbody.innerHTML='';
+      links.forEach(l => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${l.expense_id}</td><td>${l.receipt_id}</td><td>${fmtScore(l.match_score)}</td>`;
+        ltbody.appendChild(tr);
+      });
+    }
+    async function loadItems(expenseId){
+      const res = await fetch(`${API_BASE}/expenses/${expenseId}/items`);
+      if(!res.ok) return 0;
+      const data = await res.json();
+      const tbody = document.querySelector('#items-table tbody');
+      // Remove existing rows for this expense
+      Array.from(tbody.querySelectorAll(`tr[data-expense-id='${expenseId}']`)).forEach(r=>r.remove());
+      (data.items||[]).forEach(it => {
+        const tr = document.createElement('tr');
+        tr.dataset.expenseId = expenseId;
+        tr.innerHTML = `<td>${expenseId}</td><td>${it.item_date||''}</td><td>${it.description}</td><td>${it.amount}</td>`;
+        tbody.appendChild(tr);
+      });
+      return (data.items||[]).length;
+    }
+
+    document.addEventListener('click', async (e)=>{
+      if(e.target.classList.contains('itemize-btn')){
+        const expenseId = e.target.getAttribute('data-expense-id');
+        e.target.disabled = true;
+        e.target.textContent = 'Itemizing...';
+        try {
+          const res = await fetch(`${API_BASE}/expenses/${expenseId}/itemize`, { method:'POST' });
+          if(!res.ok){
+            const txt = await res.text();
+            alert('Itemization failed: '+ txt);
+          } else {
+            const count = await loadItems(expenseId);
+            if(count > 0){
+              e.target.disabled = true;
+              e.target.textContent = 'Itemized';
+              return; // keep disabled
+            }
+          }
+        } finally {
+          if(e.target.textContent !== 'Itemized'){
+            e.target.disabled = false;
+            e.target.textContent = 'Itemize';
+          }
+        }
+      }
+    });
+
+    loadReport().then(async ()=>{
+      // Preload items for any expenses that already have them and, if present, disable the Itemize button
+      const rows = Array.from(document.querySelectorAll('#expenses-table tbody tr'));
+      for(const tr of rows){
+        const tds = tr.querySelectorAll('td');
+        if(tds.length < 9) continue;
+        const expenseId = tds[0].textContent.trim();
+        const btn = tr.querySelector('.itemize-btn');
+        const count = await loadItems(expenseId);
+        if(count > 0 && btn){
+          btn.disabled = true;
+          btn.textContent = 'Itemized';
+        }
+      }
+    });
+  </script>
+</body>
+</html>

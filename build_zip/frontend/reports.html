@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Expense Reports</title>
+  <link rel="stylesheet" href="/static/assets/style.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="header-bar">
+      <div class="header-left">
+        <div class="brand">Travel Expense Automation</div>
+        <nav class="nav-inline">
+          <a href="index.html">Untagged Expenses</a>
+          <a href="tagged-expenses.html">Tagged Expenses</a>
+          <a href="expenses.html">Manage Expenses</a>
+          <a class="active" href="reports.html">Expense Reports</a>
+        </nav>
+      </div>
+      <div class="header-right"><div class="theme-toggle" id="theme-toggle" title="Toggle Theme">🌗</div></div>
+    </header>
+    <section class="card fade-in" style="margin-top:1.3rem;">
+      <div class="section-hint">Reports</div>
+      <h1 style="margin-top:0; font-size:1.2rem;">Expense Reports</h1>
+      <div class="table-wrap"><div class="table-responsive">
+      <table id="reports-table" class="table">
+        <thead>
+          <tr>
+            <th>ID</th><th>Name</th><th>Interim Approver</th><th>Approving Manager</th><th>Purpose</th><th>Created At</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table></div></div>
+    </section>
+    <footer class="app-footer">Built with FastAPI + Vanilla JS UI • <span id="year"></span></footer>
+  </div>
+  <script>
+    const __origin = window.location.origin;
+    const API_BASE = (__origin && __origin !== 'null') ? __origin : 'http://localhost:8000';
+    const rootBody = document.body; const savedTheme = localStorage.getItem('app-theme'); if(savedTheme){ rootBody.setAttribute('data-theme', savedTheme);} document.getElementById('theme-toggle').addEventListener('click', ()=>{ const cur = rootBody.getAttribute('data-theme')==='dark' ? 'light':'dark'; if(cur==='light') rootBody.removeAttribute('data-theme'); else rootBody.setAttribute('data-theme','dark'); localStorage.setItem('app-theme', cur==='light'? '' : 'dark');}); document.getElementById('year').textContent = new Date().getFullYear();
+    async function loadReports(){
+      const res = await fetch(`${API_BASE}/expense-reports/`);
+      const data = await res.json();
+      const tbody = document.querySelector('#reports-table tbody');
+      tbody.innerHTML = '';
+      data.forEach(r => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td><a class='badge primary' style='text-decoration:none;' href='report-detail.html?id=${r.id}'>${r.id}</a></td>
+          <td><a style='text-decoration:none; font-weight:500; color:var(--color-primary);' href='report-detail.html?id=${r.id}'>${r.name}</a></td>
+          <td>${r.interim_approver || ''}</td><td>${r.approving_manager || ''}</td><td>${r.purpose || ''}</td><td class='small muted'>${r.created_at}</td>`;
+        tbody.appendChild(tr);
+      });
+    }
+    loadReports();
+  </script>
+</body>
+</html>
