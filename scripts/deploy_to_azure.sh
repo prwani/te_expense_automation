@@ -28,7 +28,8 @@ PLAN_NAME="$3"
 WEBAPP_NAME="$4"
 RUNTIME="PYTHON:3.10"
 ZIP_FILE="deploy_package.zip"
-STAGING_DIR="build_zip"
+# Use a transient hidden staging directory to avoid committing or colliding with source dirs
+STAGING_DIR=".staging_package"
 
 # Detect repo root (script dir/..)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -121,6 +122,9 @@ python3 -m pip install --no-cache-dir --isolated -r requirements.txt -t \"$STAGI
 
 # Build zip from staging contents
 (cd "$STAGING_DIR" && zip -r "../$ZIP_FILE" . >/dev/null)
+
+# Cleanup staging directory after packaging to keep workspace tidy
+rm -rf "$STAGING_DIR"
 
 echo "Deploying $ZIP_FILE to $WEBAPP_NAME (az webapp deploy with retry)..."
 max_attempts=3

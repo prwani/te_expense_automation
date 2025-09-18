@@ -50,6 +50,8 @@ backend/app/uploads/
 # Deployment artifacts
 *.zip
 !/.github/
+build_zip/
+.staging_package/
 
 # Node / frontend (if later added)
 node_modules/
